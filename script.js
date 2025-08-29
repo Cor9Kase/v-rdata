@@ -170,9 +170,9 @@ async function cleanAndParseData(rawText) {
 async function getWeatherData(salesData) {
     const locationKey = locationEl.value;
     const coords = cityCoordinates[locationKey];
-    const API_KEY = "YOUR_API_KEY_HERE"; // <<-- Sett inn din API-nøkkel her
+    const API_KEY = apiKey; // <<-- Bruker den globale API-nøkkelen
     
-    if (API_KEY === "YOUR_API_KEY_HERE" || !coords) {
+    if (!API_KEY || !coords) {
         throw new Error("Vennligst oppgi en gyldig OpenWeatherMap API-nøkkel i script.js og velg et gyldig område.");
     }
 
