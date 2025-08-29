@@ -118,8 +118,8 @@ async function parseFile(file) {
         }
     } else if (file.name.endsWith('.csv')) {
         try {
-            const lines = text.split('\\n').filter(line => line.trim() !== '');
-            const header = lines[0].split(',').map(h => h.trim());
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+            const header = lines[0].split(',').map(h => h.trim().toLowerCase());
             const dateIndex = header.indexOf('date');
             const salesIndex = header.indexOf('sales');
 
