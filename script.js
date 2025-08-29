@@ -1,6 +1,3 @@
-// Definer global modell-API-nøkkel som Canvas gir
-const apiKey = "4ba7b19ecbc359133b572722ef3bac0d";
-        
 // Henter UI-elementer
 const salesFileEl = document.getElementById('salesFile');
 const locationEl = document.getElementById('location');
@@ -35,19 +32,16 @@ processBtn.addEventListener('click', async () => {
     hideContent();
 
     try {
-        // Les filen
-        const rawText = await readFile(file);
+        // Les og parse filen lokalt
+        const parsedData = await parseFile(file);
         
-        // Rydd opp dataen ved hjelp av Gemini API
-        const cleanedData = await cleanAndParseData(rawText);
-        
-        if (!cleanedData || cleanedData.length === 0) {
+        if (!parsedData || parsedData.length === 0) {
             throw new Error("Kunne ikke parse salgsdata. Sjekk filformatet.");
         }
 
         // Hent og kombiner data
-        const weatherData = await getWeatherData(cleanedData);
-        combinedData = combineData(cleanedData, weatherData);
+        const weatherData = await getWeatherData(parsedData);
+        combinedData = combineData(parsedData, weatherData);
 
         // Visualiser dataen
         renderChart(combinedData);
@@ -108,71 +102,54 @@ function readFile(file) {
     });
 }
 
-// Funksjon for å rense og parse data ved hjelp av Gemini API
-async function cleanAndParseData(rawText) {
-    const prompt = `Gitt den rotete eller uformelle teksten nedenfor, parse ut salgsdata og formater den som en JSON-array. Hvert element i arrayen skal ha en "date" (dato i YYYY-MM-DD-format) og en "sales" (salgstall) eiendom. Datoen skal være den første dagen i måneden eller uken hvis dataen er per uke. Eksempel på JSON-format: [{"date": "2023-01-01", "sales": 15000}, {"date": "2023-02-01", "sales": 18000}]. Her er teksten:\n\n${rawText}`;
-
-    const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: "ARRAY",
-                items: {
-                    type: "OBJECT",
-                    properties: {
-                        "date": { "type": "STRING" },
-                        "sales": { "type": "NUMBER" }
-                    },
-                    "propertyOrdering": ["date", "sales"]
-                }
-            }
-        }
-    };
-    
-    // Simulerer eksponensiell tilbakeslag for API-kall
-    let backoff = 1000;
-    for (let i = 0; i < 5; i++) {
+// Funksjon for å parse fil lokalt
+async function parseFile(file) {
+    const text = await readFile(file);
+    if (file.name.endsWith('.json')) {
         try {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            
-            if (!response.ok) {
-                if (response.status === 429) { // For mange forespørsler
-                    throw new Error('Retrying due to rate limit');
-                }
-                throw new Error(`API-feil: ${response.status} ${response.statusText}`);
+            const data = JSON.parse(text);
+            // Valider at dataen er i forventet format
+            if (!Array.isArray(data) || !data.every(item => 'date' in item && 'sales' in item)) {
+                throw new Error('JSON-data er ikke i riktig format. Forventer et array av objekter med "date" og "sales".');
             }
-            
-            const result = await response.json();
-            const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (jsonText) {
-                return JSON.parse(jsonText);
-            }
-            throw new Error("Ingen gyldig JSON-respons fra Gemini.");
+            return data;
         } catch (e) {
-            if (e.message.includes('Retrying')) {
-                await new Promise(res => setTimeout(res, backoff));
-                backoff *= 2;
-            } else {
-                throw e;
-            }
+            throw new Error(`Ugyldig JSON-fil: ${e.message}`);
         }
+    } else if (file.name.endsWith('.csv')) {
+        try {
+            const lines = text.split('\\n').filter(line => line.trim() !== '');
+            const header = lines[0].split(',').map(h => h.trim());
+            const dateIndex = header.indexOf('date');
+            const salesIndex = header.indexOf('sales');
+
+            if (dateIndex === -1 || salesIndex === -1) {
+                throw new Error('CSV-filen må inneholde "date" og "sales" kolonner.');
+            }
+
+            return lines.slice(1).map(line => {
+                const values = line.split(',');
+                return {
+                    date: values[dateIndex].trim(),
+                    sales: parseFloat(values[salesIndex].trim())
+                };
+            });
+        } catch (e) {
+            throw new Error(`Feil ved parsing av CSV: ${e.message}`);
+        }
+    } else {
+        throw new Error("Ugyldig filtype. Vennligst bruk CSV eller JSON.");
     }
-    throw new Error("Klarte ikke å behandle data etter flere forsøk.");
 }
 
 // Funksjon for å hente værdata fra OpenWeatherMap API
 async function getWeatherData(salesData) {
     const locationKey = locationEl.value;
     const coords = cityCoordinates[locationKey];
-    const API_KEY = apiKey; // <<-- Bruker den globale API-nøkkelen
+    // VIKTIG: Erstatt med din egen OpenWeatherMap API-nøkkel
+    const OPENWEATHER_API_KEY = "DIN_OPENWEATHERMAP_API_NØKKEL";
     
-    if (!API_KEY || !coords) {
+    if (!OPENWEATHER_API_KEY || OPENWEATHER_API_KEY === "DIN_OPENWEATHERMAP_API_NØKKEL" || !coords) {
         throw new Error("Vennligst oppgi en gyldig OpenWeatherMap API-nøkkel i script.js og velg et gyldig område.");
     }
 
@@ -180,7 +157,7 @@ async function getWeatherData(salesData) {
         const date = new Date(d.date);
         const unixTime = Math.floor(date.getTime() / 1000);
         
-        const apiUrl = `https://api.openweathermap.org/data/3.0/onecall/timemachine?lat=${coords.lat}&lon=${coords.lon}&dt=${unixTime}&appid=${API_KEY}&units=metric&lang=no`;
+        const apiUrl = `https://api.openweathermap.org/data/3.0/onecall/timemachine?lat=${coords.lat}&lon=${coords.lon}&dt=${unixTime}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=no`;
         
         return fetch(apiUrl)
             .then(response => {
