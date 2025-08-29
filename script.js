@@ -1,6 +1,5 @@
 // Definer global modell-API-nøkkel som Canvas gir
-const apiKey = "4ba7b19ecbc359133b572722ef3bac0d
-";
+const apiKey = "4ba7b19ecbc359133b572722ef3bac0d";
         
 // Henter UI-elementer
 const salesFileEl = document.getElementById('salesFile');
@@ -171,10 +170,10 @@ async function cleanAndParseData(rawText) {
 async function getWeatherData(salesData) {
     const locationKey = locationEl.value;
     const coords = cityCoordinates[locationKey];
-    const API_KEY = ""; // <<-- Sett inn din API-nøkkel her
+    const API_KEY = "YOUR_API_KEY_HERE"; // <<-- Sett inn din API-nøkkel her
     
-    if (API_KEY === "" || !coords) {
-        throw new Error("Vennligst oppgi en gyldig OpenWeatherMap API-nøkkel og velg et gyldig område.");
+    if (API_KEY === "YOUR_API_KEY_HERE" || !coords) {
+        throw new Error("Vennligst oppgi en gyldig OpenWeatherMap API-nøkkel i script.js og velg et gyldig område.");
     }
 
     const fetchPromises = salesData.map(d => {
@@ -225,6 +224,9 @@ function combineData(salesData, weatherData) {
 
 // Funksjon for å visualisere data med D3.js
 function renderChart(data) {
+    // Lag en kopi av dataen for å unngå å mutere den originale arrayen
+    const chartData = JSON.parse(JSON.stringify(data));
+
     chartEl.innerHTML = '';
     
     const margin = { top: 20, right: 20, bottom: 60, left: 60 };
@@ -238,18 +240,21 @@ function renderChart(data) {
         .attr("transform", `translate(${margin.left},${margin.top})`);
     
     const parseDate = d3.timeParse("%Y-%m-%d");
-    data.forEach(d => d.date = parseDate(d.date));
+    chartData.forEach(d => d.date = parseDate(d.date));
 
     const x = d3.scaleTime()
-        .domain(d3.extent(data, d => d.date))
+        .domain(d3.extent(chartData, d => d.date))
         .range([0, width]);
     
     const ySales = d3.scaleLinear()
-        .domain([0, d3.max(data, d => d.sales) * 1.1])
+        .domain([0, d3.max(chartData, d => d.sales) * 1.1])
         .range([height, 0]);
 
     const yWeather = d3.scaleLinear()
-        .domain(d3.extent(data, d => d.temp).map(val => val * 1.1))
+        .domain(d3.extent(chartData, d => d.temp).map((val, i) => {
+            // Utvid rekkevidden med 10% på en måte som fungerer for negative tall
+            return i === 0 ? val * 1.1 - 1 : val * 1.1 + 1;
+        }))
         .range([height, 0]);
 
     const lineSales = d3.line()
@@ -290,7 +295,7 @@ function renderChart(data) {
 
     // Linjer
     svg.append("path")
-        .datum(data)
+        .datum(chartData)
         .attr("class", "sales-line")
         .attr("fill", "none")
         .attr("stroke", "#3b82f6")
@@ -298,7 +303,7 @@ function renderChart(data) {
         .attr("d", lineSales);
     
     svg.append("path")
-        .datum(data)
+        .datum(chartData)
         .attr("class", "temp-line")
         .attr("fill", "none")
         .attr("stroke", "#f59e0b")
@@ -341,9 +346,9 @@ function renderChart(data) {
     function mousemove(event) {
         const bisectDate = d3.bisector(d => d.date).left;
         const x0 = x.invert(d3.pointer(event)[0]);
-        const i = bisectDate(data, x0, 1);
-        const d0 = data[i - 1];
-        const d1 = data[i];
+        const i = bisectDate(chartData, x0, 1);
+        const d0 = chartData[i - 1];
+        const d1 = chartData[i];
         const d = x0 - d0.date > d1.date - x0 ? d1 : d0;
         
         focus.select(".focus-circle-sales")
